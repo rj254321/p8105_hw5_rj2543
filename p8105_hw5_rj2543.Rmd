@@ -17,16 +17,93 @@ Create a tidy dataframe containing data from all participants, including the sub
 
 * Start with a dataframe containing all file names; the list.files function will help
 
+```{r all file names}
+file = list.files(path = "./data") %>% 
+  tibble()
+  
+file = rename(file, names = .)
+
+file
+```
+
 * Iterate over file names and read in data for each subject using purrr::map and saving the result as a new variable in the dataframe
+
+```{r data read in}
+file_read = function(x){
+    path = str_c("./data/", x)
+    
+    y = read_csv(path) %>% 
+      mutate(patient = x) %>%
+      separate(patient, into = c("id", "remove"), sep = ".c") %>% 
+      select(-remove) %>% 
+      select(id, everything())
+    y
+}
+
+patient = file %>% 
+  mutate(info = map(file$names, file_read)) %>% 
+  separate(names, into = c("patient_id", "remove1"), sep = ".c") %>% 
+  select(patient_id, info)
+
+patient
+
+patient$info[1]
+```
+
 
 * Tidy the result; manipulate file names to include control arm and subject ID, make sure weekly observations are “tidy”, and do any other tidying that’s necessary
 
+```{r data tidy}
+patient_tidy = patient %>%
+  janitor::clean_names() %>% 
+  separate(patient_id, into = c("arm", "id"), sep = "_") %>% 
+  select(id, everything()) %>% 
+  mutate(id = as.integer(id)) %>% 
+  arrange(id) %>% 
+  unnest() %>% 
+  select(-id1)
+
+patient_tidy
+```
+
+
 Make a spaghetti plot showing observations on each subject over time, and comment on differences between groups.
+
+```{r spaghetti plot}
+plot_patient = function(a){
+  patient_tidy %>%
+    gather(key = week, value = obs, week_1:week_8) %>%
+    separate(week, into = c("remove", "week"), sep = "_") %>% 
+    select(-remove) %>% 
+    filter(id == a) %>% 
+    ggplot(aes(x = week, y = obs, group = arm, color = arm)) +
+    geom_point() +
+    geom_path() +
+    labs(
+      title = "Observations over time among control and experimental arms",
+      x = "Week",
+      y = "Observations",
+      caption = str_c("Patient ", a)
+    )
+}
+
+b = 1:10
+
+map(patient_tidy %>% distinct(id) %>% pull(), plot_patient)
+```
+
 
 
 # Problem 2
 
 The Washington Post has gathered data on homicides in 50 large U.S. cities and made the data available through a GitHub repository here. You can read their accompanying article here.
+
+```{r}
+
+# data-homicides/homicide-data.csv
+      
+```
+
 
 Describe the raw data. Create a city_state variable (e.g. “Baltimore, MD”) and then summarize within cities to obtain the total number of homicides and the number of unsolved homicides (those for which the disposition is “Closed without arrest” or “Open/No arrest”).
 

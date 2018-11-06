@@ -98,16 +98,63 @@ map(patient_tidy %>% distinct(id) %>% pull(), plot_patient)
 
 The Washington Post has gathered data on homicides in 50 large U.S. cities and made the data available through a GitHub repository here. You can read their accompanying article here.
 
-```{r}
+```{r data import}
+homicide = read_csv("./data2/homicide-data.csv") %>% 
+  janitor::clean_names()
 
-# data-homicides/homicide-data.csv
-      
+homicide
 ```
-
 
 Describe the raw data. Create a city_state variable (e.g. “Baltimore, MD”) and then summarize within cities to obtain the total number of homicides and the number of unsolved homicides (those for which the disposition is “Closed without arrest” or “Open/No arrest”).
 
+```{r number of homicides}
+nhomicide = homicide %>% 
+  unite(city, state, col = "city_state", sep = ", ") %>% 
+  group_by(city_state) %>% 
+  count(disposition == "Closed without arrest") %>%
+  janitor::clean_names() %>% 
+  filter(disposition_closed_without_arrest == TRUE) %>% 
+  select(-disposition_closed_without_arrest) %>% 
+  rename(n_homicide = n)
+
+nunsolved = homicide %>% 
+  unite(city, state, col = "city_state", sep = ", ") %>% 
+  group_by(city_state) %>% 
+  count(disposition == "Open/No arrest") %>%
+  janitor::clean_names() %>% 
+  filter(disposition_open_no_arrest == TRUE) %>% 
+  select(-disposition_open_no_arrest) %>% 
+  rename(n_unsolved = n)
+
+full_join(nhomicide, nunsolved)
+
+```
+
+
 For the city of Baltimore, MD, use the prop.test function to estimate the proportion of homicides that are unsolved; save the output of prop.test as an R object, apply the broom::tidy to this object and pull the estimated proportion and confidence intervals from the resulting tidy dataframe.
+
+```{r prop test}
+unsolved = homicide %>% 
+  unite(city, state, col = "city_state", sep = ", ") %>% 
+  filter(city_state == "Baltimore, MD") %>% 
+  count(disposition == "Open/No arrest") %>% 
+  janitor::clean_names() %>% 
+  rename(unsolved_homicide = disposition_open_no_arrest)
+
+unsolved
+
+result = prop.test(1154, 2827)
+
+pull1 = function(x){
+  broom::tidy(result) %>% 
+    janitor::clean_names() %>%
+    pull(x)
+}
+
+key = c("estimate", "conf_low", "conf_high")
+map(key, pull1)
+```
+
 
 Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and  unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
 

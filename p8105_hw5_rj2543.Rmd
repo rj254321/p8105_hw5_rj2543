@@ -7,6 +7,7 @@ output: github_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(purrr)
 ```
 
 # Problem 1
@@ -139,11 +140,12 @@ unsolved = homicide %>%
   filter(city_state == "Baltimore, MD") %>% 
   count(disposition == "Open/No arrest") %>% 
   janitor::clean_names() %>% 
-  rename(unsolved_homicide = disposition_open_no_arrest)
+  rename(unsolved_homicide = disposition_open_no_arrest) %>% 
+  pull(n)
 
 unsolved
 
-result = prop.test(1154, 2827)
+result = prop.test(unsolved[1], sum(unsolved))
 
 pull1 = function(x){
   broom::tidy(result) %>% 
@@ -158,5 +160,46 @@ map(key, pull1)
 
 Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and  unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
 
+```{r estimate and CI for cities}
+ptest = function(x, y){
+  prop.test(x, y) %>% 
+    broom::tidy() %>% 
+    janitor::clean_names() %>%
+    select(estimate, conf_low, conf_high) %>% 
+    unite(conf_low, conf_high, col = "ci", sep = " ~ ")
+}
+
+homi_unsolved = homicide %>% 
+  unite(city, state, col = "city_state", sep = ", ") %>% 
+  group_by(city_state) %>% 
+  count(disposition == "Open/No arrest") %>% 
+  janitor::clean_names() %>% 
+  spread(key = disposition_open_no_arrest, value = n) %>% 
+  janitor::clean_names() %>% 
+  mutate(sum = false + true) %>% 
+  select(-false) %>% 
+  filter(!is.na(true) & !is.na(sum)) %>% 
+  mutate(prop = map2(.x = true, .y = sum, ~ptest(.x, .y))) %>% 
+  unnest() %>% 
+  select(-true, -sum)
+
+homi_unsolved
+
+```
+
+
 Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
+
+```{r plot}
+homi_unsolved %>% 
+  separate(col = ci, into = c("lower", "upper"), sep = " ~ ") %>%
+  mutate(lower = as.numeric(lower), upper = as.numeric(upper)) %>% 
+  ungroup() %>% 
+  mutate(city_state = forcats::fct_reorder(city_state, estimate)) %>% 
+  ggplot() +
+  geom_point(aes(x = city_state, y = estimate), color = "pink", size = 1.8) + 
+  geom_errorbar(aes(x = city_state, ymin = lower, ymax = upper), width = 0.2, alpha = 0.5) +
+  theme(axis.text.x = element_text(size = 5, angle = 45),
+        axis.text.y = element_text(size = 4))
+```
 

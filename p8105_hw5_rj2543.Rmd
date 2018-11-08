@@ -19,10 +19,10 @@ Create a tidy dataframe containing data from all participants, including the sub
 * Start with a dataframe containing all file names; the list.files function will help
 
 ```{r all file names}
-file = list.files(path = "./data") %>% 
+file = list.files(path = "./data") %>% # specify all file names, it may be more useful to use argument "full.names = TRUE" in order to do the following data import
   tibble()
   
-file = rename(file, names = .)
+file = rename(file, names = .) # make variable name meaningful
 
 file
 ```
@@ -30,25 +30,25 @@ file
 * Iterate over file names and read in data for each subject using purrr::map and saving the result as a new variable in the dataframe
 
 ```{r data read in}
-file_read = function(x){
-    path = str_c("./data/", x)
+file_read = function(x){ # write a function for read in data in the preferred way
+    path = str_c("./data/", x) # define the relative path
     
     y = read_csv(path) %>% 
-      mutate(patient = x) %>%
-      separate(patient, into = c("id", "remove"), sep = ".c") %>% 
-      select(-remove) %>% 
-      select(id, everything())
+      mutate(patient = x) %>% 
+      separate(patient, into = c("id", "remove"), sep = ".c") %>%  
+      select(-remove) %>% # use subject ID instead of file name to specify
+      select(id, everything()) # make sure subject IDs show first
     y
 }
 
 patient = file %>% 
-  mutate(info = map(file$names, file_read)) %>% 
+  mutate(info = map(file$names, file_read)) %>% # using purrr::map to read in data for each subjects
   separate(names, into = c("patient_id", "remove1"), sep = ".c") %>% 
-  select(patient_id, info)
+  select(patient_id, info) # use subject ID instead of file name to specify individual
 
-patient
+patient # data in each file is saved as a new variable called "info"
 
-patient$info[1]
+patient$info[1] # visit specific "info" tibble
 ```
 
 
@@ -57,12 +57,12 @@ patient$info[1]
 ```{r data tidy}
 patient_tidy = patient %>%
   janitor::clean_names() %>% 
-  separate(patient_id, into = c("arm", "id"), sep = "_") %>% 
+  separate(patient_id, into = c("arm", "id"), sep = "_") %>% # specify information about control arm and subjuect ID
   select(id, everything()) %>% 
   mutate(id = as.integer(id)) %>% 
-  arrange(id) %>% 
-  unnest() %>% 
-  select(-id1)
+  arrange(id) %>% # arrange data in a reader-friendly way
+  unnest() %>% # make weekly observations viable
+  select(-id1) # remove repeated subject ID to make weekly observations tidy
 
 patient_tidy
 ```
@@ -71,26 +71,24 @@ patient_tidy
 Make a spaghetti plot showing observations on each subject over time, and comment on differences between groups.
 
 ```{r spaghetti plot}
-plot_patient = function(a){
+plot_patient = function(a){ # write a plot function which can be applied to each subject
   patient_tidy %>%
-    gather(key = week, value = obs, week_1:week_8) %>%
+    gather(key = week, value = obs, week_1:week_8) %>% # prepare data for "aes"
     separate(week, into = c("remove", "week"), sep = "_") %>% 
     select(-remove) %>% 
-    filter(id == a) %>% 
-    ggplot(aes(x = week, y = obs, group = arm, color = arm)) +
+    filter(id == a) %>% # specify certain subject
+    ggplot(aes(x = week, y = obs, group = arm, color = arm)) + # show observations over time with con&exp arms on the same plot for visual comparisons
     geom_point() +
     geom_path() +
     labs(
       title = "Observations over time among control and experimental arms",
       x = "Week",
       y = "Observations",
-      caption = str_c("Patient ", a)
+      caption = str_c("Patient ", a) # specify certain subject
     )
 }
 
-b = 1:10
-
-map(patient_tidy %>% distinct(id) %>% pull(), plot_patient)
+map(patient_tidy %>% distinct(id) %>% pull(), plot_patient) # apply functions to all distinct subjects
 ```
 
 
@@ -110,24 +108,24 @@ Describe the raw data. Create a city_state variable (e.g. “Baltimore, MD”) a
 
 ```{r number of homicides}
 nhomicide = homicide %>% 
-  unite(city, state, col = "city_state", sep = ", ") %>% 
-  group_by(city_state) %>% 
-  count(disposition == "Closed without arrest") %>%
+  unite(city, state, col = "city_state", sep = ", ") %>% # create a "city_state" variable
+  group_by(city_state) %>% # in order to summarise within cities
+  count(disposition == "Closed without arrest") %>% # to specify homicides
   janitor::clean_names() %>% 
-  filter(disposition_closed_without_arrest == TRUE) %>% 
+  filter(disposition_closed_without_arrest == TRUE) %>% # obtain total number of homicides
   select(-disposition_closed_without_arrest) %>% 
   rename(n_homicide = n)
 
 nunsolved = homicide %>% 
-  unite(city, state, col = "city_state", sep = ", ") %>% 
-  group_by(city_state) %>% 
-  count(disposition == "Open/No arrest") %>%
+  unite(city, state, col = "city_state", sep = ", ") %>% # create a "city_state" variable
+  group_by(city_state) %>% # in order to summarise within cities
+  count(disposition == "Open/No arrest") %>% # to specify unsolved homicides
   janitor::clean_names() %>% 
-  filter(disposition_open_no_arrest == TRUE) %>% 
+  filter(disposition_open_no_arrest == TRUE) %>% # obtain number of unsolved homicides
   select(-disposition_open_no_arrest) %>% 
   rename(n_unsolved = n)
 
-full_join(nhomicide, nunsolved)
+full_join(nhomicide, nunsolved) # combine above information in one dataframe without omit
 
 ```
 
@@ -137,23 +135,23 @@ For the city of Baltimore, MD, use the prop.test function to estimate the propor
 ```{r prop test}
 unsolved = homicide %>% 
   unite(city, state, col = "city_state", sep = ", ") %>% 
-  filter(city_state == "Baltimore, MD") %>% 
-  count(disposition == "Open/No arrest") %>% 
+  filter(city_state == "Baltimore, MD") %>% # specify city of Baltimore, MD
+  count(disposition == "Open/No arrest") %>% # to specify unsolved homicides
   janitor::clean_names() %>% 
   rename(unsolved_homicide = disposition_open_no_arrest) %>% 
-  pull(n)
+  pull(n) # pull certain vector for prop.test
 
 unsolved
 
-result = prop.test(unsolved[1], sum(unsolved))
+result = prop.test(unsolved[1], sum(unsolved)) # save initial output of prop.test
 
-pull1 = function(x){
+pull1 = function(x){ # write a function to pull several variables
   broom::tidy(result) %>% 
     janitor::clean_names() %>%
     pull(x)
 }
 
-key = c("estimate", "conf_low", "conf_high")
+key = c("estimate", "conf_low", "conf_high") # referred to estimated proportion, low limit and upper limit of confidence interval
 map(key, pull1)
 ```
 
@@ -161,12 +159,12 @@ map(key, pull1)
 Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and  unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
 
 ```{r estimate and CI for cities}
-ptest = function(x, y){
+ptest = function(x, y){ # write a function to run prop.test and extract certain information which can applied to each city
   prop.test(x, y) %>% 
     broom::tidy() %>% 
     janitor::clean_names() %>%
-    select(estimate, conf_low, conf_high) %>% 
-    unite(conf_low, conf_high, col = "ci", sep = " ~ ")
+    select(estimate, conf_low, conf_high) %>% # referred to estimated proportion, low limit and upper limit of confidence interval
+    unite(conf_low, conf_high, col = "ci", sep = " ~ ") # unite low limit and upper limit to obtain interval
 }
 
 homi_unsolved = homicide %>% 
@@ -176,12 +174,12 @@ homi_unsolved = homicide %>%
   janitor::clean_names() %>% 
   spread(key = disposition_open_no_arrest, value = n) %>% 
   janitor::clean_names() %>% 
-  mutate(sum = false + true) %>% 
+  mutate(sum = false + true) %>% # prepare data for argument of prop.test
   select(-false) %>% 
-  filter(!is.na(true) & !is.na(sum)) %>% 
-  mutate(prop = map2(.x = true, .y = sum, ~ptest(.x, .y))) %>% 
-  unnest() %>% 
-  select(-true, -sum)
+  filter(!is.na(true) & !is.na(sum)) %>% # omit NA for prop.test
+  mutate(prop = map2(.x = true, .y = sum, ~ptest(.x, .y))) %>% # use purrr:map2 to apply function which requires 2 argument input for prop.test
+  unnest() %>% # unnest to be tidy
+  select(-true, -sum) 
 
 homi_unsolved
 
@@ -192,14 +190,14 @@ Create a plot that shows the estimates and CIs for each city – check out geom_
 
 ```{r plot}
 homi_unsolved %>% 
-  separate(col = ci, into = c("lower", "upper"), sep = " ~ ") %>%
+  separate(col = ci, into = c("lower", "upper"), sep = " ~ ") %>% # prepare data for geom_errorbar "aes"
   mutate(lower = as.numeric(lower), upper = as.numeric(upper)) %>% 
   ungroup() %>% 
-  mutate(city_state = forcats::fct_reorder(city_state, estimate)) %>% 
+  mutate(city_state = forcats::fct_reorder(city_state, estimate)) %>% # organize cities in ascending order of proportion of unsolved homicides
   ggplot() +
-  geom_point(aes(x = city_state, y = estimate), color = "pink", size = 1.8) + 
-  geom_errorbar(aes(x = city_state, ymin = lower, ymax = upper), width = 0.2, alpha = 0.5) +
+  geom_point(aes(x = city_state, y = estimate), color = "pink", size = 1.8) + # plot estimates for each city
+  geom_errorbar(aes(x = city_state, ymin = lower, ymax = upper), width = 0.2, alpha = 0.5) + # add error bars based on upper and lower limits of CI for each city
   theme(axis.text.x = element_text(size = 5, angle = 45),
-        axis.text.y = element_text(size = 4))
+        axis.text.y = element_text(size = 4)) # make city_state names readable
 ```
 

@@ -12,7 +12,7 @@ library(purrr)
 
 # Problem 1
 
-This zip file contains data from a longitudinal study that included a control arm and an experimental arm. Data for each participant is included in a separate file, and file names include the subject ID and arm.
+The original zip file contains data from a longitudinal study that included a control arm and an experimental arm. Data for each participant is included in a separate file, and file names include the subject ID and arm.
 
 Create a tidy dataframe containing data from all participants, including the subject ID, arm, and observations over time:
 
@@ -88,14 +88,15 @@ plot_patient = function(a){ # write a plot function which can be applied to each
     )
 }
 
-map(patient_tidy %>% distinct(id) %>% pull(), plot_patient) # apply functions to all distinct subjects
+map(patient_tidy %>% distinct(id) %>% pull(), plot_patient) # apply plot function to all distinct subjects
 ```
 
+**For most subjects, experimental arms obtained higher observations than control arms. Also, experimental arms experienced a gradually increasing trend in observations over time while observations of control arms fluctuated. In plots for patient 1, 5, 6, 7 and 8, two observation lines have no intersections. However, for patient 2, 3, 4, 9 and 10, observations of control arms might exceed experimental arms in beginning and middle of the study.**
 
 
 # Problem 2
 
-The Washington Post has gathered data on homicides in 50 large U.S. cities and made the data available through a GitHub repository here. You can read their accompanying article here.
+The Washington Post has gathered data on homicides in 50 large U.S. cities and made the data available through a GitHub repository. You can read their accompanying article.
 
 ```{r data import}
 homicide = read_csv("./data2/homicide-data.csv") %>% 
@@ -104,7 +105,11 @@ homicide = read_csv("./data2/homicide-data.csv") %>%
 homicide
 ```
 
-Describe the raw data. Create a city_state variable (e.g. “Baltimore, MD”) and then summarize within cities to obtain the total number of homicides and the number of unsolved homicides (those for which the disposition is “Closed without arrest” or “Open/No arrest”).
+* Describe the raw data. 
+
+**Raw data has `r nrow(homicide)` rows for different observations. And `r ncol(homicide)` columns referred to `r names(homicide)` variables.**
+
+* Create a city_state variable (e.g. “Baltimore, MD”) and then summarize within cities to obtain the total number of homicides and the number of unsolved homicides (those for which the disposition is “Closed without arrest” or “Open/No arrest”).
 
 ```{r number of homicides}
 nhomicide = homicide %>% 
@@ -125,12 +130,16 @@ nunsolved = homicide %>%
   select(-disposition_open_no_arrest) %>% 
   rename(n_unsolved = n)
 
-full_join(nhomicide, nunsolved) # combine above information in one dataframe without omit
+n_homi_unsolved = full_join(nhomicide, nunsolved) # combine above information in one dataframe without omit
+ 
+n_homi_unsolved %>% 
+  knitr::kable()
 
 ```
 
+**The table shows the total number of homicides and the number of unsolved homicides (those for which the disposition is “Closed without arrest” or “Open/No arrest”) for each city.**
 
-For the city of Baltimore, MD, use the prop.test function to estimate the proportion of homicides that are unsolved; save the output of prop.test as an R object, apply the broom::tidy to this object and pull the estimated proportion and confidence intervals from the resulting tidy dataframe.
+* For the city of Baltimore, MD, use the prop.test function to estimate the proportion of homicides that are unsolved; save the output of prop.test as an R object, apply the broom::tidy to this object and pull the estimated proportion and confidence intervals from the resulting tidy dataframe.
 
 ```{r prop test}
 unsolved = homicide %>% 
@@ -141,8 +150,6 @@ unsolved = homicide %>%
   rename(unsolved_homicide = disposition_open_no_arrest) %>% 
   pull(n) # pull certain vector for prop.test
 
-unsolved
-
 result = prop.test(unsolved[1], sum(unsolved)) # save initial output of prop.test
 
 pull1 = function(x){ # write a function to pull several variables
@@ -152,11 +159,12 @@ pull1 = function(x){ # write a function to pull several variables
 }
 
 key = c("estimate", "conf_low", "conf_high") # referred to estimated proportion, low limit and upper limit of confidence interval
-map(key, pull1)
+result1 = map(key, pull1)
 ```
 
+**For Baltimore, MD, the estimated proportion is `r result1[1]` , the confidence interval is (`r result1[2]`, `r result1[3]`).**
 
-Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and  unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
+* Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and  unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
 
 ```{r estimate and CI for cities}
 ptest = function(x, y){ # write a function to run prop.test and extract certain information which can applied to each city
@@ -164,7 +172,7 @@ ptest = function(x, y){ # write a function to run prop.test and extract certain 
     broom::tidy() %>% 
     janitor::clean_names() %>%
     select(estimate, conf_low, conf_high) %>% # referred to estimated proportion, low limit and upper limit of confidence interval
-    unite(conf_low, conf_high, col = "ci", sep = " ~ ") # unite low limit and upper limit to obtain interval
+    unite(conf_low, conf_high, col = "CI", sep = " ~ ") # unite low limit and upper limit to obtain interval
 }
 
 homi_unsolved = homicide %>% 
@@ -179,25 +187,30 @@ homi_unsolved = homicide %>%
   filter(!is.na(true) & !is.na(sum)) %>% # omit NA for prop.test
   mutate(prop = map2(.x = true, .y = sum, ~ptest(.x, .y))) %>% # use purrr:map2 to apply function which requires 2 argument input for prop.test
   unnest() %>% # unnest to be tidy
-  select(-true, -sum) 
+  select(-true, -sum)
 
-homi_unsolved
+homi_unsolved %>% 
+  knitr::kable()
 
 ```
 
-
-Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
+* Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
 
 ```{r plot}
 homi_unsolved %>% 
-  separate(col = ci, into = c("lower", "upper"), sep = " ~ ") %>% # prepare data for geom_errorbar "aes"
+  separate(col = CI, into = c("lower", "upper"), sep = " ~ ") %>% # prepare data for geom_errorbar "aes"
   mutate(lower = as.numeric(lower), upper = as.numeric(upper)) %>% 
   ungroup() %>% 
   mutate(city_state = forcats::fct_reorder(city_state, estimate)) %>% # organize cities in ascending order of proportion of unsolved homicides
   ggplot() +
   geom_point(aes(x = city_state, y = estimate), color = "pink", size = 1.8) + # plot estimates for each city
   geom_errorbar(aes(x = city_state, ymin = lower, ymax = upper), width = 0.2, alpha = 0.5) + # add error bars based on upper and lower limits of CI for each city
-  theme(axis.text.x = element_text(size = 5, angle = 45),
+  labs(
+    title = "Estimates and CIs of proportions of unsolved homicides for each city",
+    x = "City",
+    y = "Estimate and CI"
+  ) +
+  theme(axis.text.x = element_text(size = 5, angle = 45, hjust = 1),
         axis.text.y = element_text(size = 4)) # make city_state names readable
 ```
 

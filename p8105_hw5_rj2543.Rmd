@@ -8,6 +8,7 @@ output: github_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(purrr)
+library(plotly)
 ```
 
 # Problem 1
@@ -68,7 +69,7 @@ patient_tidy
 ```
 
 
-Make a spaghetti plot showing observations on each subject over time, and comment on differences between groups.
+* Make a spaghetti plot showing observations on each subject over time, and comment on differences between groups.
 
 ```{r spaghetti plot}
 plot_patient = function(a){ # write a plot function which can be applied to each subject
@@ -107,7 +108,7 @@ homicide
 
 * Describe the raw data. 
 
-**Raw data has `r nrow(homicide)` rows for different observations. And `r ncol(homicide)` columns referred to `r names(homicide)` variables.**
+**Raw data has `r nrow(homicide)` rows for different observations (i.e., cases). And `r ncol(homicide)` columns referred to `r names(homicide)` variables.**
 
 * Create a city_state variable (e.g. “Baltimore, MD”) and then summarize within cities to obtain the total number of homicides and the number of unsolved homicides (those for which the disposition is “Closed without arrest” or “Open/No arrest”).
 
@@ -194,6 +195,9 @@ homi_unsolved %>%
 
 ```
 
+**The table shows the estimated proportions and CIs for each city while homi_unsolved is the final tidy dataframe containing these information.**
+
+
 * Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
 
 ```{r plot}
@@ -211,6 +215,6 @@ homi_unsolved %>%
     y = "Estimate and CI"
   ) +
   theme(axis.text.x = element_text(size = 5, angle = 45, hjust = 1),
-        axis.text.y = element_text(size = 4)) # make city_state names readable
+        axis.text.y = element_text(size = 10)) # make city_state names readable
 ```
 
